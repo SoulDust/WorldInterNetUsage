@@ -1,0 +1,376 @@
+---
+title: "Worldbank Internet Usage Report"
+author: "Tom Wheetley"
+date: "10-26-2022"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    keep_tex: true
+header-includes:
+  - \usepackage{array}
+  - \usepackage{booktabs}
+  - \usepackage{colortbl}
+  - \usepackage{float}
+  - \usepackage{longtable}
+  - \usepackage{makecell}
+  - \usepackage{multirow}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage{wrapfig}
+  - \usepackage{xcolor}
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo =FALSE,message=FALSE,warning=FALSE, cache=TRUE, cache.lazy=FALSE)
+```
+
+```{r tinytex-options, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
+
+```{r install-library}
+# Install necessary packages if not exist
+
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2")
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+```
+
+```{r load-libraries}
+#Libraries
+
+library(data.table)
+library(ggplot2)
+library(tidyverse)
+library(caret)
+library(dplyr)
+
+
+
+############################
+# Define the RMSE function that will be used
+RMSE <- function(true_poverty = NULL, predicted_poverty = NULL) {
+  sqrt(mean((true_poverty - predicted_poverty)^2))
+}
+
+dl <- tempfile()
+download.file("https://sds-platform-private.s3-us-east-2.amazonaws.com/uploads/P2-Demographic-Data.csv", dl)
+demographics <- fread(dl, select = c("Country Name",	"Country Code",	"Birth rate",	"Internet users",	"Income Group"))
+
+
+dl_crv <- tempfile()
+download.file("https://sds-platform-private.s3-us-east-2.amazonaws.com/uploads/P2-Country-Region-Vectors.zip", dl_crv)
+
+source(unzip(dl_crv)) 
+
+#Internet History
+dl_ih_zip <- tempfile()
+download.file("https://databank.worldbank.org/data/download/WDI_csv.zip", dl_ih_zip)
+df_ih <- readLines(unzip(dl_ih_zip, "WDIData.csv"))
+
+#Load internet usage data
+#you are going to need to select the internetusage.csv here. The CSV was not available for auto download from https://ourworldindata.org/internet
+
+internetusage <- read.csv(file.choose())
+
+#Rename the columns
+colnames(internetusage) <- c("Country", "Code", "Year", "Internet.Usage")
+
+poverty_explorer <- read.csv(file.choose())
+df_poverty <- poverty_explorer %>% select(Below..2.15.a.day,	Entity,	Year)
+
+
+```
+
+\newpage
+
+# Introduction
+
+This is the "Choose Your Own, (CYO), project for the Harvard X data
+Science CapStone Course. I will be looking at internet usage and how
+poverty can effect access to it as well as how decling birth rates are
+often see in countries that are improving their economic environments
+and this can lead to more internet access.
+
+# Overview
+
+Birth rate in general, decline as the economic picture improves and we
+can see internet usage increases in these countries. The World bank in
+2017 set the poverty line to \$2.15 cents per person, per day. I will be
+using this mark to try to predict when a country may cross that
+threshold.
+
+# Executive Summary
+
+During the COVID-19 pandemic, many health agencies and service providers
+were forced to close their offices to prevent transmission of the virus.
+However to serve their clients many providers switched to providing
+medical care through tele-health services. The providers were not able
+to provide all services over the phone, some required internet access.
+For many developing countries access to the internet was a factor in
+gaining access to critical care. Many families dealing with poverty and
+the economic consequences of the pandemic were unable to access the care
+or information they required. In addition, populations with worse
+internet access also tend to have higher rates of chronic conditions and
+worse health outcomes, suggesting that as a country develops the
+reliance on internet becomes even more critical. This does not suggest
+that internet access pull people out of poverty, but rather is the
+result of improving economic conditions.
+
+#Key components: Function RMSE -Root Mean Square Error (RMSE) will
+be used to gauge the success of the predictions, measuring the
+difference between the actual and predicted value. Two different models
+will be used to evaluate RMSE, A more accurate prediction will be
+identified by a lower RMSE.
+
+The following is the calculations for RMSE:
+
+$$ RMSE = \sqrt{\frac{1}{N}\displaystyle\sum_{u,i} (\hat{y}_{u,i}-y_{u,i})^{2}} $$
+
+
+\newpage
+# Data downloads - There are 5 data sources for the project 3 are
+downloaded automatically, the internetusage.csv file and the
+poverty_explorer.csv are included with the uploaded files and will have
+to be loaded. The code is provided and the "Choose" function is used to
+browse to the file. \## Data cleansing - Cleansing of the data is
+performed on the data sets removing nulls and NAs removing and renaming
+columns for ease of use \## Visualizing the data - Data will be
+visualized with 4 plots. The first showing birth Rates and percent of
+internet users by income group. The second shows Birth Rate by Region
+and the percentage of people with internet access. The Third shows mean
+internet usage by year, by region The forth shows the mean poverty by
+region for the same time frame as plot 3 for the same regions
+
+\newpage
+
+# Data visualizations
+
+The poverty, internet usage and birth rate data are combined and loaded
+into two data sets: pov_exp for training purpose and valid for the
+validation.
+
+There are total of 3 columns in both pov_exp and valid datasets:
+pct_below is data type num shows the percentage of people with in a
+coutry living below th poverty line country is data type chr and give
+the name of the country Year is the year for the sample
+
+#Birth Rates and Internet Usage
+
+##Birth rate is defined as the number of births per 1000 adults. The
+plot shows the relationship between declining birth rates and the
+percentage of the population with internet access.The higher incomees
+show a greater internet usage and lower birth rate.
+
+## PLOT ONE
+PLOT ONE - Birth Rates and internet use by income group You can see the groups with 
+the lower birth rate are generally in the higher income group and have a higher higher percentage of internet adoption.
+
+```{r plot 1}
+qplot(data=demographics, x=`Internet users`, y=`Birth rate`, size=I(3),
+color=`Income Group`)
+```
+
+```{r Data management}
+##########################
+#Put vectors into Data Frame
+CountriesRegionsDF <- data.frame(Countries_2012_Dataset, Codes_2012_Dataset, Regions_2012_Dataset)
+
+#head(CountriesRegionsDF)
+
+#Change the column names
+colnames(CountriesRegionsDF) <- c("Country", "Code", "Region")
+
+
+
+#########################
+#Merge the data frame
+
+mergeddf <- merge(demographics, CountriesRegionsDF, by.x = "Country Code", by.y = "Code")
+
+#Remove redundant column
+mergeddf$`Country Name` <- NULL
+
+
+#merge Internet usage with regions
+mergediuregionsdf <- merge(internetusage, CountriesRegionsDF, by.x = "Code", by.y = "Code")
+
+#Remove redundant column
+mergediuregionsdf$Country.y <-NULL
+
+#Add in percentage of people below the poverty line $2.15 a day
+
+df_final = merge(mergediuregionsdf, df_poverty, by.x=c("Country.x", "Year"), by.y=c("Entity", "Year"))
+
+
+df_intu <- mergediuregionsdf %>%
+  select(Internet.Usage, Region, Year) %>%
+  group_by (Region, Year) %>%
+  summarize(Mean_Internet_Usage = mean(Internet.Usage, na.rm = TRUE))
+
+########################
+#Visualize the New data Frame
+
+options("scipen"=100, "digits"=4)
+```
+
+\newpage
+
+## PLOT TWO
+PLOT TWO - Birth Rates vs Internet usage by Continent. (Africa shows
+the slowest adoption) In the plot below you can see the Africa triangles
+are predominately in the upper left showing a higher birth rate than the 
+higher income countries of Europe represented by the green triangles.
+
+
+
+```{r plots 2}
+qplot(data=mergeddf, x=`Internet users`,
+y=`Birth rate`, size=I(3), color=Region, shape=I(17), alpha =I(0.4),
+main="Birth Rate vs Internet Usage")
+```
+
+\newpage
+## PLOT THREE
+PLOT THREE - we can see the adoption of the internet amoung the develop countries of teh world 
+well over 50% by 2020, however Africa lags behind around 37%.
+
+```{r plots 3}
+#PLOT THREE - shows Average Internet usage by Continent
+ggplot(data=df_intu, aes(x=Year, y=Mean_Internet_Usage, group=Region,
+color=Region)) + geom_line()
+```
+
+
+```{r prepare the data}
+
+df_final_plot <- df_final %>%
+  select(Below..2.15.a.day, Region, Year) %>%
+  group_by (Region, Year) %>%
+  summarize(Mean_Poverty_By_Region = mean(Below..2.15.a.day, na.rm = TRUE))
+
+df_final_plot <- df_final_plot %>% 
+  group_by(Region, Year) %>% 
+  mutate(Mean_Poverty_By_Region = replace_na(Mean_Poverty_By_Region, min(Mean_Poverty_By_Region, na.rm = TRUE)))
+
+any(is.na(df_final_plot))
+```
+
+
+\newpage
+
+## PLOT FOUR
+PLOT FOUR - show us the mean poverty by region over the last 30 years.
+
+```{r plot 4}
+ggplot(data=df_final_plot, aes(x=Year, y=Mean_Poverty_By_Region,
+group=Region, color=Region)) + geom_smooth(se = FALSE, method = "loess",
+formula = y ~ x)
+```
+
+\newpage
+## PLOT FIVE
+PLOT FIVE - shows the decline in poverty by region and the years, and can
+be compared to the previous plot to show the decline in poverty and the 
+increase in internet usage. As the countries develop, birth rates decline and 
+adoption of technology increases.
+
+
+```{r plot 5}
+ggplot() + geom_smooth(data=df_final_plot,
+aes(x=Year, y=Mean_Poverty_By_Region, group=Region, color=Region) ,
+method = "loess", formula = y ~ x)
+```
+
+\newpage
+
+```{r Validation and Results}
+# Validation set will be 10% of poverty_explorer dataset
+set.seed(1)
+test_index <- createDataPartition(y = poverty_explorer$Below..2.15.a.day, times = 1, p = 0.1, list = FALSE)
+pov_exp <- poverty_explorer[-test_index,]
+temp <- poverty_explorer[test_index,]
+
+validation <- temp
+
+# Mean-Baseline Model#########################
+#World bank calculates the poverty line at $2.15 per person per day 
+# Calculate the mean of pov_exp dataset and assign to mu_hat
+
+mu_hat <- mean(pov_exp$Below..2.15.a.day)
+
+# Predict the RMSE on the validation dataset
+
+rmse_mean_model_result <- RMSE(validation$Below..2.15.a.day, mu_hat)
+
+# Creating a results dataframe that contains all RMSE results and add the result to it
+
+results <- data.frame(model="Mean-Baseline Model", RMSE=rmse_mean_model_result)
+# results
+```
+
+print(results)
+
+```{r Models}
+
+##############################
+#Poverty Based Model
+
+valid <- validation %>% select(Below..2.15.a.day, Entity, Year)
+colnames(valid) <- c("pct_below", "country", "Year")
+
+
+#Rename the columns
+colnames(df_poverty) <- c("pct_below", "country", "Year")
+colnames(df_final) <- c("country", "Year", "Code", "Internet.Usage", "Region", "pct_below")
+
+# Calculate the average poverty by country
+
+pov_avgs <- df_final %>%
+  left_join(df_poverty, by='country') %>%
+  group_by(Region) %>%
+  summarize(b_u = mean( df_poverty$pct_below - mu_hat))
+
+# Calculate the predicted poverty on validation dataset
+
+rmse_poverty_based_model <- mean(df_final$pct_below * (df_final$Internet.Usage/100)) - mu_hat
+
+head(rmse_poverty_based_model)
+
+rmse_poverty_based_model_result <- RMSE(valid$pct_below, rmse_poverty_based_model)
+
+# Adding the results to the results dataset
+
+results <- results %>% add_row(model="Poverty Based Model", RMSE=rmse_poverty_based_model_result)
+```
+
+# Results 
+  Results Section: The mean-baseline model appears to be the more accurate of the two. 
+```{r results section}
+
+
+print(results)
+```
+
+print(results)
+
+
+# Conclusion 
+  In conclusion the data shows that people in countries
+climbing out of poverty are in a better economic position to access the
+internet.This bring other benefits like better access to information and
+healthcare. The small data sets make accurate reporting difficult, but
+overall you can see the connection to improved economic situations and
+the adoption of the internet.
+
+This model could likely be further improved by including other
+parameters (time of day,time of year,year, genre), or by using more
+sophisticated machine learning algorithms (knn, neural network, etc.).
